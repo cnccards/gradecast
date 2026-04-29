@@ -1,5 +1,5 @@
 // Gemini API client — vision-capable, uses your own key stored locally
-const MODEL = "gemini-2.0-flash-exp";
+const MODEL = "gemini-2.5-flash";
 
 export async function callGemini({ apiKey, prompt, images }) {
   if (!apiKey) throw new Error("No API key set. Tap Settings to add yours.");

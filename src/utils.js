@@ -60,7 +60,7 @@ export const buildPrompt = (mode, centeringMeasurement) => {
 
   return `You are an expert PSA card pre-grader. ${ctx}${cm}
 
-Identify the card. Estimate PSA sub-grades (1-10, 0.5 increments): centering (55/45+ for 10), corners, edges, surface. Determine overall PSA grade (lowest sub-grade typically caps it). Estimate raw/PSA8/PSA9/PSA10 market values as low-high USD ranges (use null when truly unsure). Estimate PSA 10 gem rate % based on era and known set difficulty. Check for counterfeit/reprint indicators (off colors, wrong fonts, paper-stock issues). Set confidence based on photo quality and your knowledge of the card.
+Identify the card. Estimate PSA sub-grades (1-10, 0.5 increments allowed for nuance): centering (55/45+ for 10), corners, edges, surface. Determine overall PSA grade as a WHOLE NUMBER 1-10 only — PSA does not issue half grades. Round conservatively: a card on the bubble between 9 and 10 should get 9 unless flawless.
 
 Reference: 10=Gem Mint, 9=Mint, 8=NM-MT, 7=NM, 6=EX-MT.
 

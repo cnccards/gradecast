@@ -1057,6 +1057,15 @@ function ResultCard({ result, mode, buyPrice, setBuyPrice, psaTier, setPsaTier, 
           </div>
         </div>
 
+        {result._fellBack && (
+          <div className="px-5 py-2.5 flex items-center gap-2" style={{ backgroundColor: "#1a1610", borderBottom: "1px solid #2a241a" }}>
+            <Info size={12} color="#d4af37" strokeWidth={1.5} className="shrink-0" />
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", letterSpacing: "0.1em", opacity: 0.75, lineHeight: 1.4 }}>
+              {result._fallbackReason}
+            </div>
+          </div>
+        )}
+
         {result.authenticity?.verdict === "concerns" && (
           <div className="px-5 py-4 flex items-start gap-3" style={{ backgroundColor: "#1a0e0e", borderBottom: "1px solid #4a2222" }}>
             <ShieldAlert size={18} color="#e8a8a8" strokeWidth={1.5} className="mt-0.5 shrink-0" />
@@ -1093,6 +1102,15 @@ function ResultCard({ result, mode, buyPrice, setBuyPrice, psaTier, setPsaTier, 
                   <ExternalLink size={11} strokeWidth={1.5} /> eBay sold
                 </a>
               )}
+            </div>
+          </div>
+        )}
+
+        {result.referenceBenchmark && (
+          <div className="px-5 py-4" style={{ backgroundColor: "#0c0c0b", borderBottom: "1px solid #1a1a1a" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "9px", letterSpacing: "0.25em", opacity: 0.5, marginBottom: "6px" }}>BENCHMARK</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: "13px", fontStyle: "italic", lineHeight: 1.5, opacity: 0.85 }}>
+              {result.referenceBenchmark}
             </div>
           </div>
         )}

@@ -1,7 +1,12 @@
 // Gemini API client — vision-capable, uses your own key stored locally
-// Tries the primary model first, automatically falls back to backup if rate-limited or errored.
-const PRIMARY_MODEL = "gemini-2.5-pro";
-const FALLBACK_MODEL = "gemini-2.5-flash";
+// Tries models in order: Pro → Flash → Flash-Lite. Retries on 503 (overloaded).
+const MODELS = [
+  { name: "gemini-2.5-pro", label: "Pro" },
+  { name: "gemini-2.5-flash", label: "Flash" },
+  { name: "gemini-2.5-flash-lite", label: "Flash-Lite" },
+];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function callOnce({ apiKey, model, prompt, images }) {
   const parts = [];
@@ -32,15 +37,14 @@ async function callOnce({ apiKey, model, prompt, images }) {
   const text = await response.text();
   if (!response.ok) {
     let detail = text;
-    let isRateLimit = response.status === 429;
     try {
       const parsed = JSON.parse(text);
       detail = parsed.error?.message || text;
-      if (parsed.error?.status === "RESOURCE_EXHAUSTED") isRateLimit = true;
     } catch {}
-    const err = new Error(`Gemini ${response.status}: ${detail.slice(0, 200)}`);
-    err.isRateLimit = isRateLimit;
+    const err = new Error(`${response.status}: ${detail.slice(0, 150)}`);
     err.status = response.status;
+    err.isRateLimit = response.status === 429;
+    err.isOverloaded = response.status === 503;
     throw err;
   }
 
@@ -61,43 +65,58 @@ async function callOnce({ apiKey, model, prompt, images }) {
     const first = content.indexOf("{");
     const last = content.lastIndexOf("}");
     if (first === -1 || last === -1) {
-      throw new Error("Couldn't parse Gemini's response: " + content.slice(0, 200));
+      throw new Error("Couldn't parse Gemini's response: " + content.slice(0, 150));
     }
     return JSON.parse(content.slice(first, last + 1));
   }
 }
 
+// Try a single model with up to 2 retries on overload (503)
+async function tryModelWithRetry({ apiKey, model, prompt, images }) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await callOnce({ apiKey, model: model.name, prompt, images });
+    } catch (err) {
+      lastErr = err;
+      // Only retry on 503 (overloaded). Don't retry on 429 (quota) or other errors.
+      if (err.isOverloaded && attempt < 2) {
+        await sleep(2000 * (attempt + 1)); // 2s, then 4s
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 export async function callGemini({ apiKey, prompt, images }) {
   if (!apiKey) throw new Error("No API key set. Tap Settings to add yours.");
 
-  // Try primary model first
-  try {
-    const result = await callOnce({ apiKey, model: PRIMARY_MODEL, prompt, images });
-    result._modelUsed = PRIMARY_MODEL;
-    return result;
-  } catch (primaryErr) {
-    // If rate-limited or quota exhausted, fall back to Flash automatically
-    if (primaryErr.isRateLimit || primaryErr.status === 429 || primaryErr.status === 503) {
-      console.warn("Primary model rate-limited, falling back to", FALLBACK_MODEL);
-      try {
-        const result = await callOnce({ apiKey, model: FALLBACK_MODEL, prompt, images });
-        result._modelUsed = FALLBACK_MODEL;
+  const errors = [];
+  for (let i = 0; i < MODELS.length; i++) {
+    const model = MODELS[i];
+    try {
+      const result = await tryModelWithRetry({ apiKey, model, prompt, images });
+      result._modelUsed = model.name;
+      result._modelLabel = model.label;
+      if (i > 0) {
         result._fellBack = true;
-        result._fallbackReason = "Daily limit reached on Gemini 2.5 Pro — used Flash instead";
-        return result;
-      } catch (fallbackErr) {
-        throw new Error(`Both models failed. Pro: ${primaryErr.message}. Flash: ${fallbackErr.message}`);
+        result._fallbackReason = `${MODELS[0].label} unavailable — used ${model.label} instead`;
       }
+      return result;
+    } catch (err) {
+      errors.push(`${model.label}: ${err.message}`);
+      // Continue to next model in the chain
     }
-    // Otherwise re-throw original error
-    throw primaryErr;
   }
+  throw new Error(`All models failed. ${errors.join(" | ")}`);
 }
 
-// Tiny ping to verify a key works (uses Flash for quickness)
+// Tiny ping to verify a key works (uses Flash-Lite — most reliable, biggest quota)
 export async function pingGemini(apiKey) {
   if (!apiKey) throw new Error("No key");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${FALLBACK_MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
